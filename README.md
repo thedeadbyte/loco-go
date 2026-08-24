@@ -74,7 +74,7 @@ Check the CPU/GPU split after a query with `ollama ps`.
 
 ### From source
 
-Needs Go 1.24+:
+Needs Go 1.25+:
 
 ```bash
 git clone https://github.com/thedeadbyte/loco-go && cd loco-go
