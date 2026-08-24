@@ -1,0 +1,21 @@
+# build output
+/dist/
+/loco
+/loco.exe
+
+# secrets & local state — NEVER commit these
+.env
+*.env
+*.key
+*.pem
+config.toml
+
+# loco transcripts saved with /save
+loco-session-*.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# local-only
+CLAUDE.md
