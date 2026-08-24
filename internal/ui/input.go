@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -80,10 +81,12 @@ func (in *Input) Prompt(prompt string, toolbar func() string) (string, error) {
 	case res.eof:
 		return "", io.EOF
 	}
-	line := res.ti.Value()
+	line := res.value()
 	// bubbletea wipes its own frames on exit, so echo the entered line here —
-	// otherwise the transcript loses the question next to its answer
-	fmt.Fprintln(Out, ti.PromptStyle.Render(prompt)+line)
+	// otherwise the transcript loses the question next to its answer. Echo what
+	// was on screen, placeholders and all: a pasted file would otherwise dump
+	// itself into the transcript twice.
+	fmt.Fprintln(Out, ti.PromptStyle.Render(prompt)+res.ti.Value())
 	in.Append(line)
 	return line, nil
 }
@@ -97,10 +100,12 @@ func (in *Input) snapshot() []string {
 }
 
 // Append records a line in history, in memory and on disk. Blank lines and
-// immediate repeats are skipped — they only make the up-arrow less useful.
+// immediate repeats are skipped — they only make the up-arrow less useful — and
+// so are multi-line entries: the history file is one entry per line, so a pasted
+// block would come back as a dozen bogus entries.
 func (in *Input) Append(line string) {
 	line = strings.TrimSpace(line)
-	if line == "" {
+	if line == "" || strings.Contains(line, "\n") {
 		return
 	}
 	in.mu.Lock()
@@ -134,6 +139,13 @@ type promptModel struct {
 	interrupted bool
 	eof         bool
 	done        bool
+
+	// paste detection; see paste.go for why timing is involved
+	lastKeyAt    time.Time
+	pasteUntil   time.Time
+	fastRun      int
+	pendingEnter bool
+	pendingSeq   int
 }
 
 func (m promptModel) Init() tea.Cmd { return textinput.Blink }
@@ -142,7 +154,39 @@ func (m promptModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.ti.Width = maxInt(10, msg.Width-ansi.StringWidth(m.ti.Prompt)-1)
+
+	case enterDecisionMsg:
+		// nothing followed the held Enter, so it really was "send it"
+		if !m.pendingEnter || msg.seq != m.pendingSeq {
+			return m, nil
+		}
+		m.pendingEnter = false
+		m.done = true
+		return m, tea.Quit
+
 	case tea.KeyMsg:
+		var fast, pasting bool
+		m, fast, pasting = m.noteKey()
+		// input followed the held Enter, so it was a line break after all
+		m = m.resolvePendingEnter()
+
+		// a bracketed paste arrives whole, already marked as one
+		if msg.Paste {
+			return m.insertPaste(string(msg.Runes)), nil
+		}
+		// mid-paste, a newline or tab is content, not "send it" or "complete"
+		if pasting {
+			switch msg.Type {
+			case tea.KeyEnter:
+				if fast {
+					return m.insertRunes(string(newlineMark)), nil
+				}
+				return m.deferEnter() // see enterDecideGap
+			case tea.KeyTab:
+				return m.insertRunes(string(tabMark)), nil
+			}
+		}
+
 		switch msg.Type {
 		case tea.KeyEnter:
 			m.done = true

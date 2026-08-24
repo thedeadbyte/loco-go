@@ -19,7 +19,7 @@ import (
 )
 
 // Version is loco's version, also reported by --version.
-const Version = "0.1.0"
+const Version = "0.1.1"
 
 var (
 	bold = lipgloss.NewStyle().Bold(true)

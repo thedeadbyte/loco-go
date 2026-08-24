@@ -151,6 +151,14 @@ Drop a **LOCO.md** in your project (or run `/init` to scaffold one) and loco
 loads it into the model's system prompt every session — the best way to keep a
 small local model following your conventions. `/memory` reloads it after edits.
 
+### Pasting
+
+Paste multi-line text — a stack trace, a diff, a block of code — straight into
+the prompt. It stays one message: line breaks show as `⏎` and tabs as `⇥` on
+the input line, and the real newlines and indentation are restored when you
+send it. Nothing is submitted until you press Enter yourself, so you can edit a
+paste before it goes.
+
 ### @-mentions
 
 Prefix a path with `@` (e.g. `explain @src/app.py`) to pull that file's contents
@@ -198,6 +206,8 @@ read the same `config.toml`, so profiles carry over. Deliberate differences:
   builds don't share `history` (they do share `config.toml`).
 - Long answers commit finished markdown blocks to the scrollback as they stream,
   rather than re-rendering the whole answer on every frame.
+- Multi-line messages are left out of the input history file, which is one entry
+  per line and would otherwise come back as a dozen bogus entries.
 
 ## License
 
