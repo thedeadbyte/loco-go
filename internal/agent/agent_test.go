@@ -163,8 +163,14 @@ func TestAskRunsToolThenAnswers(t *testing.T) {
 // must still run.
 func TestAskRunsTextFormToolCall(t *testing.T) {
 	dir := t.TempDir()
+	// marshal the path rather than splicing it in: a Windows temp dir is full
+	// of backslashes, which are invalid unescaped inside a JSON string
+	quotedDir, err := json.Marshal(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	f := &fakeOllama{script: []reply{
-		{text: `Let me look. {"name": "list_dir", "arguments": {"path": "` + dir + `"}}`},
+		{text: `Let me look. {"name": "list_dir", "arguments": {"path": ` + string(quotedDir) + `}}`},
 		{text: "It is empty."},
 	}}
 	rec := &recorder{}
