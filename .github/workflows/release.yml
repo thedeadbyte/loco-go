@@ -1,0 +1,42 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write   # required to create the release and upload binaries
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # dist/ filenames come from the Version constant, not the tag. If they
+      # disagree the release ships binaries named after the wrong version, so
+      # fail here instead of publishing something confusing.
+      - name: tag must match internal/cli.Version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version=$(sed -n 's/^const Version = "\(.*\)"$/\1/p' internal/cli/cli.go)
+          if [ "$tag" != "$version" ]; then
+            echo "tag $GITHUB_REF_NAME does not match Version \"$version\" in internal/cli/cli.go"
+            exit 1
+          fi
+
+      - name: check
+        run: make check
+
+      - name: build every platform
+        run: make dist
+
+      # gh is preinstalled on the runner; no third-party action in the release path
+      - name: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes --verify-tag
